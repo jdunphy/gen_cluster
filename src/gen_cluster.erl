@@ -367,7 +367,7 @@ sync_with_leaders([], State)        -> State;
 sync_with_leaders([H|Rest], State)  -> sync_with_leaders(Rest, sync_with_leader(H, State)).
 
 sync_with_leader(Pid, State) when is_pid(Pid) ->
-  case is_process_alive(Pid) andalso Pid =/= self() of
+  case is_global_process_alive(Pid) andalso Pid =/= self() of
     false -> State;
     true ->
       case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 1000) of
@@ -514,7 +514,7 @@ need_to_take_over_globally_registered_name(State) -> % bool()
   case whereis_global(State) of
     undefined -> true;
     Pid ->  
-    case is_process_alive(Pid) of
+    case is_global_process_alive(Pid) of
       true -> false;
       false -> true
     end
@@ -536,7 +536,7 @@ get_seed_nodes(State) ->
   end,
   Servers2 = case init:get_argument(gen_cluster_known) of
     {ok, [[Server]]} ->
-      lists:append([list_to_atom(Server), Servers1]);
+      lists:append([list_to_atom(Server)], Servers1);
      _ ->
       case State#state.seed of
         [Server|_Servers] ->
@@ -586,3 +586,9 @@ get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state
     Pid -> [Pid|Pids2]
   end,
   lists:usort(Pids3). % get unique elements
+
+is_global_process_alive(Pid) when is_pid(Pid) ->
+  case catch rpc:call(node(Pid), erlang, is_process_alive, [Pid]) of
+    {badrpc, nodedown}  -> false;
+    Res -> Res
+  end.
