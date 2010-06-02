@@ -4,22 +4,24 @@
 -compile(export_all).
 
 setup() ->
-    {ok, Node1Pid} = example_cluster_srv:start_named(node1, [{seed, undefined}]),
-    {ok, _Node2Pid} = example_cluster_srv:start_named(node2, [{seed, Node1Pid}]),
-    {ok, _Node3Pid} = example_cluster_srv:start_named(node3, [{seed, Node1Pid}]),
-    [node1, node2, node3].
+  {ok, Nodes} = test_util:start(3),
+  Nodes.
 
 teardown(Servers) ->
-    lists:map(fun(Pname) -> 
-        Pid = whereis(Pname),
-        gen_cluster:cast(Pid, stop), 
-        try unregister(Pname)
-        catch _:_ -> ok
-        end
-     end, Servers),
-    ok.
+  test_util:shutdown(Servers).
 
-node_state_test_() ->
+all_test_() ->
+  {"Node testing",
+    [
+      {"Test node state", fun node_state_to_q/0},
+      {"Test global takeover", fun node_global_takeover_to_q/0},
+      {"Test add a child", fun add_child_to_q/0},
+      {"Test different type of failure", fun do_some_more_to_q/0},
+      {"Test different type of node", fun different_type_of_node_to_q/0}
+    ]
+  }.
+  
+node_state_to_q() ->
   {
     setup, fun setup/0, fun teardown/1,
     fun () ->
@@ -33,7 +35,7 @@ node_state_test_() ->
     end
   }.
 
-node_global_takeover_test_() ->
+node_global_takeover_to_q() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -55,41 +57,41 @@ node_global_takeover_test_() ->
       end
   }.
 
-different_type_of_node_test_() ->
+different_type_of_node_to_q() ->
   {
     setup, fun setup/0, fun teardown/1,
     fun() ->
       Node1Pid = whereis(node1),
       Node2Pid = whereis(node2),
       Node3Pid = whereis(node3),
-      
+
       {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, [{seed, Node1Pid}, {leader_pids, Node1Pid}]),
       {ok, TwoPlist} = gen_cluster:plist(node1),
       ?assertEqual(2, length(TwoPlist)),
-      
+
       ExampleC = proplists:get_value(example_cluster_srv, TwoPlist),
       ?assertEqual(3, length(ExampleC)),
       ?assertEqual([Node3Pid, Node2Pid, Node1Pid], ExampleC),
-      
+
       OtherC = proplists:get_value(other_example_cluster_srv, TwoPlist),
       ?assertEqual(1, length(OtherC)),
       ?assertEqual([Node4Pid], OtherC),
-      
+
       % Kill off one and make sure the rest still match
       gen_cluster:cast(Node3Pid, stop),
       timer:sleep(500),
-      
+
       Node2Plist = gen_cluster:plist(node2),
       Node4Plist = gen_cluster:plist(node4),
       % erlang:display({Node2Plist, Node4Plist}),
       ?assertEqual(Node2Plist, Node4Plist),
-      
+
       teardown([node4]),
       {ok}
     end
   }.
 
-do_some_more_test_() ->
+do_some_more_to_q() ->
   fun() ->
     {ok, Pid} = example_cluster_srv:start(),
     {ok, Pid2} = example_cluster_srv:expand_clone(Pid),
@@ -104,7 +106,7 @@ do_some_more_test_() ->
     ok
   end.
 
-add_child_test_() ->
+add_child_to_q() ->
   {setup, fun setup/0, fun teardown/1,
     fun() ->
       {ok, Pid} = dummy_gen_server:start_link(),
@@ -118,7 +120,7 @@ add_child_test_() ->
 
 % {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
 
-% node_leave_test_not() ->
+% node_leave_to_qnot() ->
 %   {
 %       setup, fun setup/0,
 %       fun () ->
