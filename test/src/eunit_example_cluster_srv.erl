@@ -13,15 +13,15 @@ teardown(Servers) ->
 all_test_() ->
   {"Node testing",
     [
-      {"Test node state", fun node_state_to_q/0},
-      {"Test global takeover", fun node_global_takeover_to_q/0},
-      {"Test add a child", fun add_child_to_q/0},
-      {"Test different type of failure", fun do_some_more_to_q/0},
-      {"Test different type of node", fun different_type_of_node_to_q/0}
+      {"Test node state", fun node_state/0},
+      {"Test global takeover", fun node_global_takeover/0},
+      {"Test add a child", fun add_child/0},
+      {"Test different type of failure", fun do_some_more/0},
+      {"Test different type of node", fun different_type_of_node/0}
     ]
   }.
   
-node_state_to_q() ->
+node_state() ->
   {
     setup, fun setup/0, fun teardown/1,
     fun () ->
@@ -35,7 +35,7 @@ node_state_to_q() ->
     end
   }.
 
-node_global_takeover_to_q() ->
+node_global_takeover() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -57,7 +57,7 @@ node_global_takeover_to_q() ->
       end
   }.
 
-different_type_of_node_to_q() ->
+different_type_of_node() ->
   {
     setup, fun setup/0, fun teardown/1,
     fun() ->
@@ -91,7 +91,7 @@ different_type_of_node_to_q() ->
     end
   }.
 
-do_some_more_to_q() ->
+do_some_more() ->
   fun() ->
     {ok, Pid} = example_cluster_srv:start(),
     {ok, Pid2} = example_cluster_srv:expand_clone(Pid),
@@ -106,7 +106,7 @@ do_some_more_to_q() ->
     ok
   end.
 
-add_child_to_q() ->
+add_child() ->
   {setup, fun setup/0, fun teardown/1,
     fun() ->
       {ok, Pid} = dummy_gen_server:start_link(),
@@ -120,7 +120,7 @@ add_child_to_q() ->
 
 % {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
 
-% node_leave_to_qnot() ->
+% node_leavenot() ->
 %   {
 %       setup, fun setup/0,
 %       fun () ->
