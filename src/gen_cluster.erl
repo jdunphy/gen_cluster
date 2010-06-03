@@ -60,7 +60,8 @@ behaviour_info(_) ->
   data,         % user mod's data
   seed,         % seed
   local_plist,  % local proplist of pids
-  leader_pids   % pid list of the leader processes
+  global_pid,   % Pid of the globally registered name
+  seed_pids     % pid list of the seeds processes
 }).
 
 %% debugging helper
@@ -128,10 +129,10 @@ add_child(PidRef, Mod, Pid) ->
 
 init([Mod, Args]) ->
   Seed = proplists:get_value(seed, Args, undefined),
-  LeaderPids = proplists:get_value(leader_pids, Args, []),
+  LeaderPids = proplists:get_value(seed_pids, Args, []),
   
   ?TRACE("Starting seed", Seed),
-  InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed, leader_pids = LeaderPids},
+  InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed, seed_pids = LeaderPids},
   {ok, State1} = join_existing_cluster(InitialState),
   {_Resp, State2} = start_cluster_if_needed(State1),
   
@@ -328,7 +329,7 @@ handle_node_leaving(Pid, Info, State) ->
         {ok, NewState2} = remove_pid_from_plist(Pid, CurrentState),
         Pidlist = NewState2#state.local_plist,
         {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
-        NewState3 = take_over_globally_registered_name_if_needed(NewState2),
+        NewState3 = take_over_globally_registered_name_if_needed(Pid, NewState2),
         % NewState3 = NewState2,
         NewState3#state{state=NewExtState};
       false -> State
@@ -359,7 +360,7 @@ join_existing_cluster(State) ->
   Servers = get_seed_nodes(State),
   connect_to_servers(Servers),
   global:sync(), % otherwise we may not see the pid yet
-  LeaderPids = lists:append([Servers, get_leader_pids(State)]),
+  LeaderPids = lists:append([Servers, get_seed_pids(State)]),
   NewState = sync_with_leaders(LeaderPids, State),
   {ok, NewState}.
 
@@ -373,7 +374,7 @@ sync_with_leader(Pid, State) when is_pid(Pid) ->
       case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 1000) of
         {ok, KnownPlist} ->
           case add_pids_to_plist(KnownPlist, State) of
-            {ok, NewInformedState} -> NewInformedState#state{leader_pids = Pid};
+            {ok, NewInformedState} -> NewInformedState#state{seed_pids = Pid};
             _Else -> State
           end;
         Error ->
@@ -417,8 +418,8 @@ start_cluster_if_needed(State) ->
   {Resp, NewState} = case whereis_global(State) of
     undefined ->
       start_cluster(State);
-    _ ->
-      {no, State}
+    GlobalPid ->
+      {no, State#state{global_pid = GlobalPid}}
   end,
   {{ok, Resp}, NewState}.
 
@@ -436,7 +437,7 @@ start_cluster(State) ->
   global:sync(), % otherwise we may not see the other pids yet
   ?TRACE("Starting server:", globally_registered_name(State)),
   RegisterResp = global:register_name(globally_registered_name(State), self()),
-  {RegisterResp, State}.
+  {RegisterResp, State#state{global_pid = self()}}.
 
 % The elements are a list of proplists from the this or other servers  
 add_pids_to_plist([{HeadMod, HeadPids}|OtherPids], State) when is_list(HeadPids) ->
@@ -502,22 +503,26 @@ fetch_pid_and_mod_from_proplist(Pid, #state{local_plist = Plist} = _State) ->
     [Node] -> {ok, Node, Pid}
   end.
     
-take_over_globally_registered_name_if_needed(State) -> % NewState
-  case need_to_take_over_globally_registered_name(State) of
+take_over_globally_registered_name_if_needed(OldPid, State) -> % NewState
+  case need_to_take_over_globally_registered_name(OldPid, State) of
     true -> 
       {_YesNo, NewState} = start_cluster(State),  
       NewState;
     false -> State
   end. 
 
-need_to_take_over_globally_registered_name(State) -> % bool()
+need_to_take_over_globally_registered_name(OldPid, #state{global_pid = Pid} = _State) when OldPid == Pid -> true;
+need_to_take_over_globally_registered_name(OldPid, State) -> % bool()
   case whereis_global(State) of
     undefined -> true;
-    Pid ->  
-    case is_global_process_alive(Pid) of
-      true -> false;
-      false -> true
-    end
+    OldPid ->
+      timer:sleep(random:uniform(1000)),
+      need_to_take_over_globally_registered_name(OldPid, State);
+    Pid ->
+      case is_global_process_alive(Pid) of
+        true -> false;
+        false -> true
+      end
   end.
 
 % list of Nodes
@@ -560,7 +565,7 @@ get_seed_nodes(State) ->
   end,  
   Servers3.
 
-get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state = ExtState} = State) ->
+get_seed_pids(#state{module = Mod, seed_pids = LeaderPid, seed = Seed, state = ExtState} = State) ->
   SeedPids = case Seed of
     undefined -> [];
     X1 -> [X1]
@@ -570,9 +575,9 @@ get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state
     PidList when is_list(PidList) -> lists:flatten([PidList, SeedPids]);
     E when is_pid(E) -> [E|SeedPids]
   end,
-  Pids2 = case erlang:function_exported(Mod, leader_pids, 1) of
+  Pids2 = case erlang:function_exported(Mod, seed_pids, 1) of
     true -> 
-      case Mod:leader_pids(ExtState) of
+      case Mod:seed_pids(ExtState) of
         undefined -> Pids;
         [undefined] -> Pids;
         List when is_list(List) -> lists:append([List, Pids]);

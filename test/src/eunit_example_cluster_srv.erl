@@ -13,49 +13,47 @@ teardown(Servers) ->
 all_test_() ->
   {"Node testing",
     [
-      {"Test node state", fun node_state/0},
-      {"Test global takeover", fun node_global_takeover/0},
-      {"Test add a child", fun add_child/0},
-      {"Test different type of failure", fun do_some_more/0},
-      {"Test different type of node", fun different_type_of_node/0}
+      {setup, fun setup/0, fun teardown/1,
+        [
+          % fun node_state/0,
+          % fun add_child/0,
+          % fun do_some_more/0,
+          % fun different_type_of_node/0,
+          fun node_global_takeover/0
+        ]
+      }
+      % {"Test global takeover", node_global_takeover()},
+      % {"Test add a child", add_child()},
+      % {"Test different type of failure", do_some_more()},
+      % {"Test different type of node", different_type_of_node()}
     ]
   }.
   
 node_state() ->
-  {
-    setup, fun setup/0, fun teardown/1,
-    fun () ->
-      ?assert(true =:= true),
-      {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
-      ?assertEqual(3, length(Plist)),
-      {ok, _State1} = gen_cluster:call(node1, {state}),
-      % ?assert(is_record(State1, state) =:= true),
-      % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
-      {ok}
-    end
-  }.
+  ?assert(true =:= true),
+  {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+  ?assertEqual(3, length(Plist)),
+  {ok, _State1} = gen_cluster:call(node1, {state}),
+  % ?assert(is_record(State1, state) =:= true),
+  % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
+  passed.
 
 node_global_takeover() ->
-  {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         Node1Pid = whereis(node1),
-         {ok, Name1} = gen_cluster:call(Node1Pid, {'$gen_cluster', globally_registered_name}),
+  Node1Pid = whereis(node0),
+  {ok, Name1} = gen_cluster:call(Node1Pid, {'$gen_cluster', globally_registered_name}),
+  
+  GlobalPid1 = global:whereis_name(Name1),
+  ?assert(is_process_alive(GlobalPid1)),
+  
+  gen_cluster:cast(Node1Pid, stop),
+  timer:sleep(500),
 
-         GlobalPid1 = global:whereis_name(Name1),
-         ?assert(is_process_alive(GlobalPid1)),
+  GlobalPid2 = global:whereis_name(Name1),
+  ?assert(GlobalPid1 =/= GlobalPid2),
+  ?assert(is_process_alive(GlobalPid2)),
 
-         gen_cluster:cast(Node1Pid, stop),
-         timer:sleep(500),
-
-         GlobalPid2 = global:whereis_name(Name1),
-         ?assert(GlobalPid1 =/= GlobalPid2),
-         ?assert(is_process_alive(GlobalPid2)),
-
-         % {ok, _Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
-         {ok}
-      end
-  }.
+  % {ok, _Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
+  passed.
 
 different_type_of_node() ->
   {
@@ -65,7 +63,7 @@ different_type_of_node() ->
       Node2Pid = whereis(node2),
       Node3Pid = whereis(node3),
 
-      {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, [{seed, Node1Pid}, {leader_pids, Node1Pid}]),
+      {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, [{seed, Node1Pid}, {seed_pids, Node1Pid}]),
       {ok, TwoPlist} = gen_cluster:plist(node1),
       ?assertEqual(2, length(TwoPlist)),
 
