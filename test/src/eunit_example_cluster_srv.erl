@@ -15,17 +15,13 @@ all_test_() ->
     [
       {setup, fun setup/0, fun teardown/1,
         [
-          % fun node_state/0,
-          % fun add_child/0,
-          % fun do_some_more/0,
-          % fun different_type_of_node/0,
+          fun node_state/0,
+          fun add_child/0,
+          fun do_some_more/0,
+          fun different_type_of_node/0,
           fun node_global_takeover/0
         ]
       }
-      % {"Test global takeover", node_global_takeover()},
-      % {"Test add a child", add_child()},
-      % {"Test different type of failure", do_some_more()},
-      % {"Test different type of node", different_type_of_node()}
     ]
   }.
   
