@@ -1,7 +1,6 @@
--module(eunit_example_cluster_srv).
+-module (cluster_srv_tests).
 -include_lib("eunit/include/eunit.hrl").
 -include ("debugger.hrl").
--compile(export_all).
 
 setup() ->
   {ok, Nodes} = test_util:start(3),
