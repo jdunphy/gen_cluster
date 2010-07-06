@@ -4,5 +4,5 @@
  
 all_test_() ->
   [
-    {module, eunit_example_cluster_srv}
+    {module, cluster_srv_tests}
   ].

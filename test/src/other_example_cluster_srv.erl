@@ -4,7 +4,7 @@
 -compile(export_all).
 
 -export([start/0, start_link/1, start_named/2]).
--export ([leader_pids/1]).
+-export ([seed_pids/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -37,7 +37,7 @@ start_link(Config) ->
 start_named(Name, Config) ->
     gen_cluster:start_link({local, Name}, ?MODULE, Config, []).
     
-leader_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
+seed_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 
 %%====================================================================
 %% gen_server callbacks
