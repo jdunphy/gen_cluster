@@ -38,7 +38,8 @@
 -export([
   plist/1,
   mod_plist/2,
-  publish/2
+  publish/2,
+  call_vote/2
 ]).
 
 behaviour_info(callbacks) ->
@@ -110,6 +111,9 @@ mod_plist(Type, PidRef) ->
 
 publish(Mod, Msg) when is_atom(Mod) ->
   do_publish(Mod, Msg).
+
+call_vote(Mod, Msg) ->
+  do_call_vote(Mod, Msg).
 
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
@@ -185,8 +189,15 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
   {reply, Reply, State};
   
 handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
-  Pids = gproc:lookup_pids({p,g,{gen_cluster, Mod}}),
+  Pids = gproc:lookup_pids({p,g,cluster_key(Mod)}),
   {reply, {ok, Pids}, State};
+
+handle_call({'$gen_cluster', handle_vote_called, Msg}, From, #state{module = Mod, state = ExtState} = State) ->
+  Reply = case erlang:function_exported(Mod, handle_vote, 2) of
+    false -> {reply, 0, State};
+    true -> Mod:handle_vote(Msg, ExtState)
+  end,
+  handle_call_reply(Reply, From, State);
 
 handle_call(Request, From, State) ->
   Mod = State#state.module,
@@ -260,7 +271,7 @@ handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod, state = 
       Reply = Mod:handle_publish(Msg, ExtState),
       handle_publish_reply(Reply, State)
   end;
-  
+
 handle_info(Info, State) ->
     ?TRACE("got other INFO", Info),
     Mod = State#state.module,
@@ -331,18 +342,18 @@ handle_pid_leaving(Pid, Info, State) ->
     true ->
 	% XXX: There's a bug in gproc that prevents it from removing
         % keys when a remote node goes away. This should do the trick for now.
-        gproc_dist:leader_call({unreg, {p,g,cluster_key(State)}, Pid}),
+        gproc_dist:leader_call({unreg, {p,g,cluster_key(State#state.module)}, Pid}),
 	{ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
         {true, State#state{state=NewExtState}};
     false -> {false, State}
   end.
 
 
-cluster_key(#state{module = Mod} = _State) ->
+cluster_key(Mod) ->
   {gen_cluster, Mod}.
 
 cluster_pids(State) ->
-  gproc:lookup_pids({p,g,cluster_key(State)}).
+  gproc:lookup_pids({p,g,cluster_key(State#state.module)}).
 
 monitor_pid(Pid) when is_pid(Pid) ->
   case Pid =/= self() of
@@ -354,7 +365,7 @@ is_pid_part_of_the_cluster(Pid, State) when is_pid(Pid) ->
   lists:member(Pid, cluster_pids(State)).
 
 join_cluster(State) ->
-  gproc:reg({p,g,cluster_key(State)}),
+  gproc:reg({p,g,cluster_key(State#state.module)}),
   lists:foreach(
     fun(Pid) ->
       case Pid =/= self() of
@@ -370,10 +381,20 @@ join_cluster(State) ->
 % publish through gproc
 do_publish(Mod, Msg) ->
   lists:foreach(fun(Pid) ->
-    case catch erlang:send(Pid, {'$gen_cluster', handle_publish, Msg}, [noconnect]) of
-  	  noconnect ->
-        spawn(erlang, send, [Pid,Msg]);
-  	  Other ->
-  	    Other
-    end
-  end, gproc:lookup_pids({p,g,{gen_cluster, Mod}})).
+    do_send(Pid, {'$gen_cluster', handle_publish, Msg})
+  end, gproc:lookup_pids({p,g,cluster_key(Mod)})).
+
+% Call vote
+do_call_vote(Mod, Msg) ->
+  Votes = lists:map(fun(Pid) ->
+    Vote = gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}),
+    {Pid, Vote}
+  end, gproc:lookup_pids({p,g,cluster_key(Mod)})),
+  [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
+  WinnerPid.
+  
+do_send(Pid, Msg) ->
+  case catch erlang:send(Pid, Msg, [noconnect]) of
+	  noconnect -> spawn(erlang, send, [Pid,Msg]);
+	  Other -> Other
+  end.

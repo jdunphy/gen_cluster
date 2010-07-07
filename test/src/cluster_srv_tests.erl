@@ -19,7 +19,8 @@ all_test_() ->
           fun do_some_more/0,
           fun different_type_of_node/0,
           fun node_global_takeover/0,
-          fun publish_tests/0
+          fun publish_tests/0,
+          fun vote_tests/0
         ]
       }
     ]
@@ -45,6 +46,14 @@ publish_tests() ->
     ?assert(T == {hello, from, HeadPid})
   end, Plist),
   
+  passed.
+
+vote_tests() ->
+  O = gen_cluster:call_vote(example_cluster_srv, {run, server}),
+  {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+  % In this test, the winner will always be the last element
+  Winner = hd(lists:reverse(Plist)),
+  ?assert(O == Winner),
   passed.
 
 node_global_takeover() ->

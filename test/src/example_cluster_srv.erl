@@ -16,7 +16,12 @@
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/2, handle_leave/3, handle_publish/2]).
+-export([handle_join/2, handle_leave/3]).
+% Optional gen_cluster callbacks
+-export ([
+  handle_publish/2,
+  handle_vote/2
+]).
 
 -include ("debugger.hrl").
 
@@ -59,7 +64,7 @@ get_msg() ->
 
 init(Args) ->
   ?TRACE("called init", Args),
-  InitialState = #state{name=example_cluster_srv, pid=self(), timestamp=0},
+  InitialState = #state{name=example_cluster_srv, pid=self(), timestamp=calendar:datetime_to_gregorian_seconds(calendar:now_to_universal_time(now()))},
   {ok, InitialState}.
 
 %%--------------------------------------------------------------------
@@ -164,3 +169,15 @@ handle_leave(LeavingPid, Info, State) ->
 
 handle_publish(Msg, State) ->
   {noreply, State#state{last_msg = Msg}}.
+
+handle_vote({run, server}, State) ->
+  VoteValue = index_of(self(), erlang:processes()),
+  {reply, VoteValue, State};
+handle_vote(_Msg, State) ->
+  {reply, 0, State}.
+  
+index_of(Item, List) -> index_of(Item, List, 1).
+
+index_of(_, [], _)  -> not_found;
+index_of(Item, [Item|_], Index) -> Index;
+index_of(Item, [_|Tl], Index) -> index_of(Item, Tl, Index+1).
