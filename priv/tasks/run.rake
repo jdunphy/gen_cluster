@@ -7,12 +7,12 @@ end
 SERVER   = "example_cluster_srv1@#{Socket.gethostname}"
 
 namespace :server do
-  1.upto(4) do |i| 
+  1.upto(4) do |i|
     desc "start server #{i}"
     task "start#{i}" => [".erlang.cookie", :compile] do
       existing_server = i > 1 ? " -gen_cluster_known '#{SERVER}' " : ""
       stop = ENV['STOP'] ? " -s init stop " : ""
-      sh %Q{erl -pa #{root}/ebin -pa #{root}/test/ebin  \
+      sh %Q{erl -pa #{root}/ebin -pa #{root}/test/ebin -pa #{root}/deps/*/ebin \
 -name "example_cluster_srv#{i}@#{Socket.gethostname}" \
 -setcookie abc \
 +W w \
@@ -27,5 +27,5 @@ namespace :server do
 end
 
 file ".erlang.cookie" do
-  sh "echo 'acookiechangeme1234' > .erlang.cookie" 
+  sh "echo 'acookiechangeme1234' > .erlang.cookie"
 end

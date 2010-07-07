@@ -11,7 +11,7 @@
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/3, handle_leave/4]).
+-export([handle_join/2, handle_leave/3]).
 
 -include ("debugger.hrl").
 
@@ -137,8 +137,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% join more than once. Pidlist contains all known pids. Pidlist includes
 %% JoiningPid.
 %%--------------------------------------------------------------------
-handle_join(JoiningPid, Pidlist, State) ->
-  ?TRACE("~p:~p handle join called: ~p Pidlist: ~p~n", [JoiningPid, Pidlist]),
+handle_join(JoiningPid, State) ->
+  ?TRACE("~p:~p handle join called: ~p~n", [JoiningPid]),
   {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -148,6 +148,6 @@ handle_join(JoiningPid, Pidlist, State) ->
 %% Description: Called whenever a node joins the cluster via another node and
 %%     the joining node is simply announcing its presence.
 %%--------------------------------------------------------------------
-handle_leave(LeavingPid, Pidlist, Info, State) ->
-  ?TRACE("~p:~p handle_leave called: ~p Pidlist: ~p~n", [LeavingPid, Pidlist, Info]),
+handle_leave(LeavingPid, Info, State) ->
+  ?TRACE("~p:~p handle_leave called: ~p~n", [LeavingPid, Info]),
   {ok, State}.

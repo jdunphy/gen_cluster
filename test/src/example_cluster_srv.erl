@@ -9,15 +9,14 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1, start_named/2, expand_clone/1]).
--export ([seed_pids/1]).
+-export([start/0, start_link/1, start_named/2]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/3, handle_leave/4]).
+-export([handle_join/2, handle_leave/3]).
 
 -include ("debugger.hrl").
 
@@ -31,7 +30,18 @@
 %% Description: Alias for start_link
 %%--------------------------------------------------------------------
 start() ->
-    start_link([]). 
+    erlang:display("KLANG KLANG"),
+    %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
+    %Seed = init:get_argument(gen_cluster_known),
+    Seed = os:getenv("GPROC_SEED"),
+
+    io:format("Hello ~p~n", [Seed]),
+
+    SeedNode = list_to_atom(Seed),
+    net_adm:ping(SeedNode),
+    application:set_env(gproc, gproc_dist, [node()|nodes()]),
+    application:start(gproc),
+    start_link([]).
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -43,10 +53,7 @@ start_link(Config) ->
 start_named(Name, Config) ->
   gen_cluster:start_link({local, Name}, ?MODULE, Config, []).
 
-expand_clone(Seed) ->
-  gen_cluster:start_link(?MODULE, [{seed, Seed}], []).
 
-seed_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 
 %%====================================================================
 %% gen_server callbacks
@@ -60,7 +67,7 @@ seed_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 
-init(Args) -> 
+init(Args) ->
   ?TRACE("called init", Args),
   InitialState = #state{name=example_cluster_srv, pid=self(), timestamp=0},
   {ok, InitialState}.
@@ -80,10 +87,10 @@ handle_call({ohai}, _From, State) ->
     NewState = State#state{timestamp=T},
     {reply, hello, NewState};
 
-handle_call({state}, _From, State) -> 
+handle_call({state}, _From, State) ->
     {reply, {ok, State}, State};
 
-handle_call(_Request, _From, State) -> 
+handle_call(_Request, _From, State) ->
     {reply, todo_reply, State}.
 
 % e.g.
@@ -107,7 +114,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(stop, State) ->
     ?TRACE("got stop cast", []),
     {stop, normal, State};
-handle_cast(_Msg, State) -> 
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -116,7 +123,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(_Info, State) -> 
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -126,7 +133,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) -> 
+terminate(_Reason, _State) ->
     ?TRACE("terminating", []),
     ok.
 
@@ -134,7 +141,7 @@ terminate(_Reason, _State) ->
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) -> 
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -146,9 +153,10 @@ code_change(_OldVsn, State, _Extra) ->
 %% join more than once. Pidlist contains all known pids. Pidlist includes
 %% JoiningPid.
 %%--------------------------------------------------------------------
-handle_join(JoiningPid, Pidlist, State) ->
-  ?TRACE("~p:~p handle join called: ~p Pidlist: ~p~n", [JoiningPid, Pidlist]),
+handle_join(JoiningPid, State) ->
+  ?TRACE("~p:~p handle join called: ~p~n", [JoiningPid]),
   {ok, State}.
+
 
 %%--------------------------------------------------------------------
 %% Function: handle_leave(JoiningPid, Pidlist, State) -> {ok, State} 
@@ -157,7 +165,7 @@ handle_join(JoiningPid, Pidlist, State) ->
 %% Description: Called whenever a node joins the cluster via another node and
 %%     the joining node is simply announcing its presence.
 %%--------------------------------------------------------------------
-handle_leave(LeavingPid, Pidlist, Info, State) ->
-  ?TRACE("~p:~p handle_leave called: ~p Pidlist: ~p~n", [LeavingPid, Pidlist, Info]),
+handle_leave(LeavingPid, Info, State) ->
+  ?TRACE("~p:~p handle_leave called: ~p~n", [LeavingPid, Info]),
   {ok, State}.
 
