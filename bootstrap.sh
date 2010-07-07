@@ -4,8 +4,6 @@ DDIR="./deps"
 ROOTDIR=`pwd`
 DEPSDIR="$ROOTDIR/$DDIR"
 
-RABBIT_VERSION="1.8.0"
-
 mkdir -p $DEPSDIR
 cd $DEPSDIR
 
