@@ -363,12 +363,7 @@ join_cluster(State) ->
     cluster_pids(State)),
   {ok, State}.
 
-% PUB/SUB
-% subscribe through gproc
-% subscribe({QueueName, Props}) when is_list(QueueName) -> subscribe({erlang:list_to_atom(QueueName), Props});
-% subscribe({QueueName, Props}) -> 
-%   Fun = proplists:get_value(callback, fun unhandled/1, Props),
-%   gproc:reg({p, l, {QueueName, Fun}}).
+% publish through gproc
 do_publish(Mod, Msg) ->
   lists:foreach(fun(Pid) ->
     case catch erlang:send(Pid, {'$gen_cluster', handle_publish, Msg}, [noconnect]) of
