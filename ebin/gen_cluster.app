@@ -10,6 +10,6 @@
   {registered,   []},
   {applications, [kernel, stdlib]},
   {mod, {gen_cluster, []}},
-  {env, [{gproc_dist, true}]}
+  {env, []}
  ]
 }.

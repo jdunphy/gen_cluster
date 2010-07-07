@@ -129,26 +129,7 @@ call_vote(Mod, Msg) ->
 init([Mod, Args]) ->
   InitialState = #state{module = Mod},
   
-  case whereis(gproc) of
-    undefined ->
-      %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
-      %Seed = init:get_argument(gen_cluster_known),
-      Seeds = case os:getenv("GPROC_SEEDS") of
-        false -> [node()];
-        E -> lists:map(fun(Node) ->
-          case Node of
-            List when is_list(List) -> erlang:list_to_atom(List);
-            Atom -> Atom
-          end
-        end, [node()|E])
-      end,
-      
-      % Ping the nodes
-      [ net_adm:ping(S) || S <- Seeds ],
-      application:set_env(gproc, gproc_dist, Seeds),
-      application:start(gproc);
-    _ -> ok
-  end,
+  start_gproc_if_necessary(),
   {ok, State} = join_cluster(InitialState),
 
   ?TRACE("Starting state", State),
@@ -401,4 +382,26 @@ do_send(Pid, Msg) ->
   case catch erlang:send(Pid, Msg, [noconnect]) of
 	  noconnect -> spawn(erlang, send, [Pid,Msg]);
 	  Other -> Other
+  end.
+
+start_gproc_if_necessary() ->
+  case whereis(gproc) of
+    undefined ->
+      %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
+      %Seed = init:get_argument(gen_cluster_known),
+      Seeds = case os:getenv("GPROC_SEEDS") of
+        false -> [node()];
+        E -> lists:map(fun(Node) ->
+          case Node of
+            List when is_list(List) -> erlang:list_to_atom(List);
+            Atom -> Atom
+          end
+        end, [node()|E])
+      end,
+      
+      % Ping the nodes
+      [ net_adm:ping(S) || S <- Seeds ],
+      application:set_env(gproc, gproc_dist, Seeds),
+      application:start(gproc);
+    _ -> ok
   end.
