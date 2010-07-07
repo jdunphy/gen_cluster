@@ -36,13 +36,15 @@
 
 %% Helper functions
 -export([
-  plist/1
+  plist/1,
+  mod_plist/2,
+  publish/2
 ]).
 
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 2}, {handle_leave, 3},
+      {handle_join, 2}, {handle_leave, 3}, {handle_publish, 2},
     % gen_server
       {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
@@ -102,6 +104,12 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 
 plist(PidRef) -> % {ok, Plist}
   call(PidRef, {'$gen_cluster', plist}).
+  
+mod_plist(Type, PidRef) ->
+  call(PidRef, {'$gen_cluster', mod_plist, Type}).
+
+publish(Mod, Msg) when is_atom(Mod) ->
+  do_publish(Mod, Msg).
 
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
@@ -116,6 +124,27 @@ plist(PidRef) -> % {ok, Plist}
 
 init([Mod, Args]) ->
   InitialState = #state{module = Mod},
+  
+  case whereis(gproc) of
+    undefined ->
+      %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
+      %Seed = init:get_argument(gen_cluster_known),
+      Seeds = case os:getenv("GPROC_SEEDS") of
+        false -> [node()];
+        E -> lists:map(fun(Node) ->
+          case Node of
+            List when is_list(List) -> erlang:list_to_atom(List);
+            Atom -> Atom
+          end
+        end, [node()|E])
+      end,
+      
+      % Ping the nodes
+      [ net_adm:ping(S) || S <- Seeds ],
+      application:set_env(gproc, gproc_dist, Seeds),
+      application:start(gproc);
+    _ -> ok
+  end,
   {ok, State} = join_cluster(InitialState),
 
   ?TRACE("Starting state", State),
@@ -154,7 +183,10 @@ handle_call({'$gen_cluster', join, Pid}, From, State) ->
 handle_call({'$gen_cluster', plist}, _From, State) ->
   Reply = {ok, cluster_pids(State)},
   {reply, Reply, State};
-
+  
+handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
+  Pids = gproc:lookup_pids({p,g,{gen_cluster, Mod}}),
+  {reply, {ok, Pids}, State};
 
 handle_call(Request, From, State) ->
   Mod = State#state.module,
@@ -218,8 +250,15 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info} = T, #state{module = Mod} 
       erlang:display({?MODULE, ?LINE, error, {unknown, E}})
   end;
 
+handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod} = State) ->
+  ?TRACE("Got a PUBLISH message: ~p", Msg),
+  Mod = State#state.module,
+  ExtState = State#state.state,
+  Reply = Mod:handle_publish(Msg, ExtState),
+  handle_publish_reply(Reply, State);
+  
 handle_info(Info, State) ->
-    ?TRACE("got other INFO", val),
+    ?TRACE("got other INFO", Info),
     Mod = State#state.module,
     ExtState = State#state.state,
     Reply = Mod:handle_info(Info, ExtState),
@@ -234,6 +273,14 @@ handle_cast_info_reply({noreply, ExtState, Timeout}, State) ->
 handle_cast_info_reply({stop, Reason, ExtState}, State) ->
     NewState = State#state{state=ExtState},
     {stop, Reason, NewState}.
+
+
+handle_publish_reply({ok, ExtState}, State) ->
+  {noreply, State#state{state = ExtState}};
+handle_publish_reply({noreply, ExtState}, State) ->
+  {noreply, State#state{state = ExtState}};
+handle_publish_reply({stop, Reason, ExtState}, State) ->
+  {stop, Reason, State#state{state=ExtState}}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -315,3 +362,19 @@ join_cluster(State) ->
     end,
     cluster_pids(State)),
   {ok, State}.
+
+% PUB/SUB
+% subscribe through gproc
+% subscribe({QueueName, Props}) when is_list(QueueName) -> subscribe({erlang:list_to_atom(QueueName), Props});
+% subscribe({QueueName, Props}) -> 
+%   Fun = proplists:get_value(callback, fun unhandled/1, Props),
+%   gproc:reg({p, l, {QueueName, Fun}}).
+do_publish(Mod, Msg) ->
+  lists:foreach(fun(Pid) ->
+    case catch erlang:send(Pid, {'$gen_cluster', handle_publish, Msg}, [noconnect]) of
+  	  noconnect ->
+        spawn(erlang, send, [Pid,Msg]);
+  	  Other ->
+  	    Other
+    end
+  end, gproc:lookup_pids({p,g,{gen_cluster, Mod}})).

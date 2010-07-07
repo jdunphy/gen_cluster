@@ -18,7 +18,8 @@ all_test_() ->
           fun add_child/0,
           fun do_some_more/0,
           fun different_type_of_node/0,
-          fun node_global_takeover/0
+          fun node_global_takeover/0,
+          fun publish_tests/0
         ]
       }
     ]
@@ -31,6 +32,19 @@ node_state() ->
   {ok, _State1} = gen_cluster:call(node1, {state}),
   % ?assert(is_record(State1, state) =:= true),
   % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
+  passed.
+
+publish_tests() ->
+  {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+  [HeadPid|_] = Plist,
+  gen_cluster:publish(example_cluster_srv, {hello, from, HeadPid}),
+  
+  timer:sleep(100),
+  lists:foreach(fun(Pid) ->
+    {ok, T} = gen_cluster:call(Pid, {get_msg}),
+    ?assert(T == {hello, from, HeadPid})
+  end, Plist),
+  
   passed.
 
 node_global_takeover() ->

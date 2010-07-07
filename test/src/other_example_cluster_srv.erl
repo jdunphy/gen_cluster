@@ -11,7 +11,7 @@
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/2, handle_leave/3]).
+-export([handle_join/2, handle_leave/3, handle_publish/2]).
 
 -include ("debugger.hrl").
 
@@ -150,4 +150,8 @@ handle_join(JoiningPid, State) ->
 %%--------------------------------------------------------------------
 handle_leave(LeavingPid, Info, State) ->
   ?TRACE("~p:~p handle_leave called: ~p~n", [LeavingPid, Info]),
+  {ok, State}.
+
+handle_publish(Msg, State) ->
+  ?TRACE("Got handle_publish: ~p~n", [Msg]),
   {ok, State}.

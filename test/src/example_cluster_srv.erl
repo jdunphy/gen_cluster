@@ -9,18 +9,18 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1, start_named/2]).
+-export([start/0, start_link/1, start_named/2, get_msg/0]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/2, handle_leave/3]).
+-export([handle_join/2, handle_leave/3, handle_publish/2]).
 
 -include ("debugger.hrl").
 
--record(state, {name, pid, timestamp}).
+-record(state, {name, pid, last_msg, timestamp}).
 
 %%====================================================================
 %% API
@@ -30,18 +30,7 @@
 %% Description: Alias for start_link
 %%--------------------------------------------------------------------
 start() ->
-    erlang:display("KLANG KLANG"),
-    %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
-    %Seed = init:get_argument(gen_cluster_known),
-    Seed = os:getenv("GPROC_SEED"),
-
-    io:format("Hello ~p~n", [Seed]),
-
-    SeedNode = list_to_atom(Seed),
-    net_adm:ping(SeedNode),
-    application:set_env(gproc, gproc_dist, [node()|nodes()]),
-    application:start(gproc),
-    start_link([]).
+  start_link([]).
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -53,7 +42,8 @@ start_link(Config) ->
 start_named(Name, Config) ->
   gen_cluster:start_link({local, Name}, ?MODULE, Config, []).
 
-
+get_msg() ->
+  gen_cluster:call(?MODULE, {get_msg}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -83,15 +73,18 @@ init(Args) ->
 %%--------------------------------------------------------------------
 
 handle_call({ohai}, _From, State) ->
-    T = State#state.timestamp + 1,
-    NewState = State#state{timestamp=T},
-    {reply, hello, NewState};
+  T = State#state.timestamp + 1,
+  NewState = State#state{timestamp=T},
+  {reply, hello, NewState};
 
+handle_call({get_msg}, _From, #state{last_msg = Msg} = State) ->
+  {reply, {ok, Msg}, State};
+  
 handle_call({state}, _From, State) ->
-    {reply, {ok, State}, State};
+  {reply, {ok, State}, State};
 
 handle_call(_Request, _From, State) ->
-    {reply, todo_reply, State}.
+  {reply, todo_reply, State}.
 
 % e.g.
 % handle_call({create_ring}, _From, State) ->
@@ -169,3 +162,5 @@ handle_leave(LeavingPid, Info, State) ->
   ?TRACE("~p:~p handle_leave called: ~p~n", [LeavingPid, Info]),
   {ok, State}.
 
+handle_publish(Msg, State) ->
+  {noreply, State#state{last_msg = Msg}}.
