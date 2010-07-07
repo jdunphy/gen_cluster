@@ -17,8 +17,3 @@ cd $DEPSDIR
   cd gproc
   make 
 )
-
-# Download rebar deps
-(
-  make deps
-)
