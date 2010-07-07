@@ -389,6 +389,7 @@ do_call_vote(Mod, Msg) ->
   Votes = lists:map(fun(Pid) ->    
     Vote = case catch gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}) of
       {'EXIT', _} -> 0;
+      {error, _} -> 0;
       E -> E
     end,
     {Pid, Vote}
