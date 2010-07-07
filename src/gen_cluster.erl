@@ -386,8 +386,11 @@ do_publish(Mod, Msg) ->
 
 % Call vote
 do_call_vote(Mod, Msg) ->
-  Votes = lists:map(fun(Pid) ->
-    Vote = gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}),
+  Votes = lists:map(fun(Pid) ->    
+    Vote = case catch gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}) of
+      {'EXIT', _} -> 0;
+      E -> E
+    end,
     {Pid, Vote}
   end, gproc:lookup_pids({p,g,cluster_key(Mod)})),
   [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
