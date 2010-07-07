@@ -44,7 +44,7 @@
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 2}, {handle_leave, 3}, {handle_publish, 2},
+      {handle_join, 2}, {handle_leave, 3}
     % gen_server
       {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
@@ -250,12 +250,16 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info} = T, #state{module = Mod} 
       erlang:display({?MODULE, ?LINE, error, {unknown, E}})
   end;
 
-handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod} = State) ->
-  ?TRACE("Got a PUBLISH message: ~p", Msg),
-  Mod = State#state.module,
-  ExtState = State#state.state,
-  Reply = Mod:handle_publish(Msg, ExtState),
-  handle_publish_reply(Reply, State);
+handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod, state = ExtState} = State) ->
+  case erlang:function_exported(Mod, handle_publish, 2) of
+    false -> handle_cast_info_reply({noreply, ExtState}, State);
+    true ->
+      ?TRACE("Got a PUBLISH message: ~p", Msg),
+      Mod = State#state.module,
+      ExtState = State#state.state,
+      Reply = Mod:handle_publish(Msg, ExtState),
+      handle_publish_reply(Reply, State)
+  end;
   
 handle_info(Info, State) ->
     ?TRACE("got other INFO", Info),
