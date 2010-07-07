@@ -44,7 +44,7 @@
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 2}, {handle_leave, 3}
+      {handle_join, 2}, {handle_leave, 3},
     % gen_server
       {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
