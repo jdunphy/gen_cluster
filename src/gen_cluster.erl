@@ -144,7 +144,7 @@ call_vote(Mod, Msg) ->
 init([Mod, Args]) ->
   InitialState = #state{module = Mod},
   
-  start_gproc_if_necessary(),
+  start_gproc_if_necessary(InitialState),
   {ok, State} = join_cluster(InitialState),
 
   ?TRACE("Starting state", State),
@@ -399,20 +399,39 @@ do_send(Pid, Msg) ->
 	  Other -> Other
   end.
 
-start_gproc_if_necessary() ->
+get_seed_pids(#state{module = Mod, state = ExtState} = _State) ->
+  Pids1 = case os:getenv("GPROC_SEEDS") of
+    false -> [node()];
+    E -> lists:map(fun(Node) ->
+      case Node of
+        List when is_list(List) -> erlang:list_to_atom(List);
+        Atom -> Atom
+      end
+    end, [node()|E])
+  end,
+  Pids2 = case erlang:function_exported(Mod, seed_pids, 1) of
+    true -> 
+      case Mod:seed_pids(ExtState) of
+        undefined -> Pids1;
+        [undefined] -> Pids1;
+        List when is_list(List) -> lists:append([List, Pids1]);
+        APid when is_pid(APid) -> [APid|Pids1]
+      end;
+    false -> Pids1
+  end,
+  Pids3 = case whereis(Mod) of % join unless we are the main server 
+    undefined -> Pids2;
+    X when X =:= self() -> Pids2;
+    Pid -> [Pid|Pids2]
+  end,
+  lists:usort(Pids3). % get unique elements
+
+start_gproc_if_necessary(State) ->
   case whereis(gproc) of
     undefined ->
       %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
       %Seed = init:get_argument(gen_cluster_known),
-      Seeds = case os:getenv("GPROC_SEEDS") of
-        false -> [node()];
-        E -> lists:map(fun(Node) ->
-          case Node of
-            List when is_list(List) -> erlang:list_to_atom(List);
-            Atom -> Atom
-          end
-        end, [node()|E])
-      end,
+      Seeds = get_seed_pids(State),
       
       % Ping the nodes
       [ net_adm:ping(S) || S <- Seeds ],
