@@ -39,6 +39,7 @@
   plist/1,
   mod_plist/2,
   publish/2,
+  ballot_run/2,
   call_vote/2
 ]).
 
@@ -112,6 +113,20 @@ mod_plist(Type, PidRef) ->
 publish(Mod, Msg) when is_atom(Mod) ->
   do_publish(Mod, Msg).
 
+% Run through a vote and run the function
+ballot_run(Mod, Msg) -> 
+  case call_vote(Mod, Msg) of
+    Pid when is_pid(Pid) -> 
+      case catch call(Pid, Msg) of
+        {'EXIT', Err} -> {error, Err};
+        {ok, _} -> Pid;
+        _ -> Pid
+      end;
+    Else ->
+      erlang:display({could_not_run, Else})
+  end.
+  
+% Call vote and get the PID
 call_vote(Mod, Msg) ->
   do_call_vote(Mod, Msg).
 

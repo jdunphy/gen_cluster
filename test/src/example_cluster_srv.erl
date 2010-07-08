@@ -9,7 +9,7 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1, start_named/2, get_msg/0]).
+-export([start/0, start_link/1, start_named/2, get_msg/0, set_msg/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -50,6 +50,9 @@ start_named(Name, Config) ->
 get_msg() ->
   gen_cluster:call(?MODULE, {get_msg}).
 
+set_msg(Msg) ->
+  gen_cluster:call(?MODULE, {set_msg, Msg}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -81,6 +84,9 @@ handle_call({ohai}, _From, State) ->
   T = State#state.timestamp + 1,
   NewState = State#state{timestamp=T},
   {reply, hello, NewState};
+
+handle_call({set_msg, Msg}, _From, State) ->
+  {reply, {ok, Msg}, State#state{last_msg = Msg}};
 
 handle_call({get_msg}, _From, #state{last_msg = Msg} = State) ->
   {reply, {ok, Msg}, State};
@@ -171,6 +177,7 @@ handle_publish(Msg, State) ->
   {noreply, State#state{last_msg = Msg}}.
 
 handle_vote({run, server}, State) ->
+  % To give us a unique value
   VoteValue = index_of(self(), erlang:processes()),
   {reply, VoteValue, State};
 handle_vote(_Msg, State) ->

@@ -49,11 +49,15 @@ publish_tests() ->
   passed.
 
 vote_tests() ->
-  O = gen_cluster:call_vote(example_cluster_srv, {run, server}),
+  O1 = gen_cluster:call_vote(example_cluster_srv, {run, server}),
   {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
   % In this test, the winner will always be the last element
   Winner = hd(lists:reverse(Plist)),
-  ?assert(O == Winner),
+  ?assert(O1 == Winner),
+  O2 = gen_cluster:ballot_run(example_cluster_srv, {set_msg, {hello, from, self()}}),
+  % {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+  {ok, NewMsg} = gen_cluster:call(O2, {get_msg}),
+  ?assert({hello, from, self()} == NewMsg),
   passed.
 
 node_global_takeover() ->
