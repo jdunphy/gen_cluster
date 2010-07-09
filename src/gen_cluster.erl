@@ -458,7 +458,7 @@ start_gproc_if_necessary(State) ->
     _ -> ok
   end.
 
-randomly_pick([], Acc) -> Acc;
+randomly_pick([], Acc) -> hd(Acc);
 randomly_pick(Bees, Acc) ->
   RandNum = random:uniform(length(Bees)),
   Bee = lists:nth(RandNum, Bees),
