@@ -350,12 +350,14 @@ handle_pid_leaving(Pid, Info, State) ->
     true ->
 	% XXX: There's a bug in gproc that prevents it from removing
         % keys when a remote node goes away. This should do the trick for now.
-        gproc_dist:leader_call({unreg, {p,g,cluster_key(State#state.module)}, Pid}),
+	cleanup_gproc_data_from_dead_pid(cluster_key(State#state.module), Pid),
 	{ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
         {true, State#state{state=NewExtState}};
     false -> {false, State}
   end.
 
+cleanup_gproc_data_from_dead_pid(Key, Pid) ->
+    catch gproc_dist:leader_call({unreg, {p,g,Key}, Pid}).
 
 cluster_key(Mod) ->
   {gen_cluster, Mod}.
