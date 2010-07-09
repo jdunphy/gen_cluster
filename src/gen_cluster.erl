@@ -39,6 +39,7 @@
   plist/1,
   mod_plist/2,
   publish/2,
+  run/2,
   ballot_run/2,
   call_vote/2
 ]).
@@ -112,6 +113,17 @@ mod_plist(Type, PidRef) ->
 
 publish(Mod, Msg) when is_atom(Mod) ->
   do_publish(Mod, Msg).
+
+% Run a vote, if none come back, force one to run
+run(Mod, Msg) ->
+  case ballot_run(Mod, Msg) of
+    {error, no_winner} ->
+      % Force a run
+      P = randomly_pick(gproc:lookup_pids({p,g,cluster_key(Mod)}), []),
+      call(P, Msg);
+    {error, _} = T -> T;
+    {ok, _, _} = Good -> Good
+  end.
 
 % Run through a vote and run the function
 ballot_run(Mod, Msg) -> 
@@ -445,3 +457,10 @@ start_gproc_if_necessary(State) ->
       application:start(gproc);
     _ -> ok
   end.
+
+randomly_pick([], Acc) -> Acc;
+randomly_pick(Bees, Acc) ->
+  RandNum = random:uniform(length(Bees)),
+  Bee = lists:nth(RandNum, Bees),
+  NewBees = lists:delete(Bee, Bees),
+  randomly_pick(NewBees, [Bee|Acc]).

@@ -20,6 +20,7 @@ all_test_() ->
           fun different_type_of_node/0,
           fun node_global_takeover/0,
           fun publish_tests/0,
+          fun run_tests/0,
           fun vote_tests/0
         ]
       }
@@ -61,6 +62,13 @@ vote_tests() ->
   % Now for one that doesn't have any participants
   Out = gen_cluster:ballot_run(example_cluster_srv, {something_i_dont_want_to_do, args}),
   ?assert(element(1, Out) =:= error),
+  passed.
+
+run_tests() ->
+  Msg = {hello, from, self()},
+  {ok, Pid, _Output} = gen_cluster:run(example_cluster_srv, {set_msg, Msg}),
+  {ok, NewMsg} = gen_cluster:call(Pid, {get_msg}),
+  ?assert(Msg == NewMsg),
   passed.
 
 node_global_takeover() ->
