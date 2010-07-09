@@ -120,7 +120,7 @@ run(Mod, Msg) ->
     {error, no_winner} ->
       % Force a run
       P = randomly_pick(gproc:lookup_pids({p,g,cluster_key(Mod)}), []),
-      call(P, Msg);
+      call(P, Msg, infinity);
     {error, _} = T -> T;
     {ok, _, _} = Good -> Good
   end.
@@ -129,7 +129,7 @@ run(Mod, Msg) ->
 ballot_run(Mod, Msg) -> 
   case call_vote(Mod, Msg) of
     Pid when is_pid(Pid) -> 
-      case catch call(Pid, Msg) of
+      case catch call(Pid, Msg, infinity) of
         {'EXIT', Err} -> {error, Err};
         T -> {ok, Pid, T}
       end;
