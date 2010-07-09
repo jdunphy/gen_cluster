@@ -54,7 +54,7 @@ vote_tests() ->
   % In this test, the winner will always be the last element
   Winner = hd(lists:reverse(Plist)),
   ?assert(O1 == Winner),
-  O2 = gen_cluster:ballot_run(example_cluster_srv, {set_msg, {hello, from, self()}}),
+  {ok, O2, _Result} = gen_cluster:ballot_run(example_cluster_srv, {set_msg, {hello, from, self()}}),
   {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
   {ok, NewMsg} = gen_cluster:call(O2, {get_msg}),
   ?assert({hello, from, self()} == NewMsg),

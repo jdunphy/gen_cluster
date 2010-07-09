@@ -119,8 +119,7 @@ ballot_run(Mod, Msg) ->
     Pid when is_pid(Pid) -> 
       case catch call(Pid, Msg) of
         {'EXIT', Err} -> {error, Err};
-        {ok, _} -> Pid;
-        _ -> Pid
+        {ok, _} = T -> {ok, Pid, T}
       end;
     {error, _Reason} = T ->
       % erlang:display({could_not_run, Reason}),
