@@ -122,8 +122,9 @@ ballot_run(Mod, Msg) ->
         {ok, _} -> Pid;
         _ -> Pid
       end;
-    Else ->
-      erlang:display({could_not_run, Else})
+    {error, _Reason} = T ->
+      % erlang:display({could_not_run, Reason}),
+      T
   end.
   
 % Call vote and get the PID
@@ -382,7 +383,7 @@ do_publish(Mod, Msg) ->
 
 % Call vote
 do_call_vote(Mod, Msg) ->
-  Votes = lists:map(fun(Pid) ->    
+  OriginalVotes = lists:map(fun(Pid) ->    
     Vote = case catch gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}) of
       {'EXIT', _} -> 0;
       {error, _} -> 0;
@@ -390,8 +391,12 @@ do_call_vote(Mod, Msg) ->
     end,
     {Pid, Vote}
   end, gproc:lookup_pids({p,g,cluster_key(Mod)})),
-  [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
-  WinnerPid.
+  case lists:filter(fun({_, Vote}) -> Vote > 0 end, OriginalVotes) of
+    [] -> {error, no_winner};
+    Votes ->
+      [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
+      WinnerPid
+  end.
   
 do_send(Pid, Msg) ->
   case catch erlang:send(Pid, Msg, [noconnect]) of

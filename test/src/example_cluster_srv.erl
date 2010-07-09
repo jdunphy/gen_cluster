@@ -176,6 +176,9 @@ handle_leave(LeavingPid, Info, State) ->
 handle_publish(Msg, State) ->
   {noreply, State#state{last_msg = Msg}}.
 
+handle_vote({set_msg, {hello, from, _From}}, State) ->
+  {reply, 1, State};
+  
 handle_vote({run, server}, State) ->
   % To give us a unique value
   VoteValue = index_of(self(), erlang:processes()),
