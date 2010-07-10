@@ -36,7 +36,6 @@
 
 %% Helper functions
 -export([
-  plist/1,
   mod_plist/2,
   publish/2,
   run/2,
@@ -106,8 +105,6 @@ enter_loop(Mod, Options, State, ServerName, Timeout) ->
 wake_hib(Parent, Name, State, Mod, Debug) ->
   gen_server:wake_hib(Parent, Name, State, Mod, Debug).
 
-plist(PidRef) -> % {ok, Plist}
-  call(PidRef, {'$gen_cluster', plist}).
 
 mod_plist(Type, PidRef) ->
   call(PidRef, {'$gen_cluster', mod_plist, Type}).
@@ -193,10 +190,6 @@ handle_call({'$gen_cluster', join, Pid}, From, State) ->
   {ok, NewState} = handle_pid_joining(Pid, From, State),
   {reply, ok, NewState};
 
-handle_call({'$gen_cluster', plist}, _From, State) ->
-  Reply = {ok, cluster_pids(State)},
-  {reply, Reply, State};
-  
 handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
   Pids = gproc:lookup_pids({p,g,cluster_key(Mod)}),
   {reply, {ok, Pids}, State};
