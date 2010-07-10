@@ -333,7 +333,7 @@ code_change(OldVsn, State, Extra) ->
 
 handle_pid_joining(Pid, _From, State) ->
   ?TRACE("handle_pid_joining", Pid),
-  monitor_pid(Pid),
+  erlang:monitor(process, Pid),
 
   % callback
   #state{module=Mod, state=ExtState} = State,
@@ -370,19 +370,13 @@ cluster_key(Mod) ->
 cluster_pids(State) ->
   gproc:lookup_pids({p,g,cluster_key(State#state.module)}).
 
-monitor_pid(Pid) when is_pid(Pid) ->
-  case Pid =/= self() of
-    false -> ok;
-    true -> erlang:monitor(process, Pid)
-  end.
-
 join_cluster(State) ->
   gproc:reg({p,g,cluster_key(State#state.module)}),
   lists:foreach(
     fun(Pid) ->
       case Pid =/= self() of
 	true ->
-	  monitor_pid(Pid),
+	  erlang:monitor(process, Pid),
 	  call(Pid, {'$gen_cluster', join, self()});
         false -> ok
       end
