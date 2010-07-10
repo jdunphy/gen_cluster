@@ -60,7 +60,7 @@ behaviour_info(_) ->
   module,       % module name started
   state,        % mod's state
   data,         % user mod's data
-  plist         % cached copy of cluster members' list
+  monitors      % list of monitors
 }).
 
 %% debugging helper
@@ -108,7 +108,7 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 
 plist(PidRef) -> % {ok, Plist}
   call(PidRef, {'$gen_cluster', plist}).
-  
+
 mod_plist(Type, PidRef) ->
   call(PidRef, {'$gen_cluster', mod_plist, Type}).
 
@@ -156,7 +156,7 @@ call_vote(Mod, Msg) ->
 
 init([Mod, Args]) ->
   InitialState = #state{module = Mod},
-  
+
   start_gproc_if_necessary(InitialState),
   {ok, State} = join_cluster(InitialState),
 
@@ -258,9 +258,9 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', _MonitorRef, process, Pid, Info} = T, #state{module = Mod} = State) ->
+handle_info({'DOWN', MonitorRef, process, Pid, Info} = T, #state{module = Mod} = State) ->
   ?TRACE("received 'DOWN'. Info:", Info),
-  case handle_pid_leaving(Pid, Info, State) of
+  case handle_pid_leaving(Pid, MonitorRef, Info, State) of
     {false, #state{state = ExtState} = _NoPidNewState} ->
       Reply = Mod:handle_info(T, ExtState),
       handle_cast_info_reply(Reply, State);
@@ -333,7 +333,7 @@ code_change(OldVsn, State, Extra) ->
 
 handle_pid_joining(Pid, _From, State) ->
   ?TRACE("handle_pid_joining", Pid),
-  erlang:monitor(process, Pid),
+  MonRef = erlang:monitor(process, Pid),
 
   % callback
   #state{module=Mod, state=ExtState} = State,
@@ -342,22 +342,22 @@ handle_pid_joining(Pid, _From, State) ->
       _Else -> State
   end,
 
-  Plist = StateData#state.plist,
-  NewState = StateData#state{plist = [Pid|Plist]},
+  Monitors = StateData#state.monitors,
+  NewState = StateData#state{monitors = [MonRef|Monitors]},
   {ok, NewState}.
 
-handle_pid_leaving(Pid, Info, State) ->
+handle_pid_leaving(Pid, MonitorRef, Info, State) ->
   ExtState = State#state.state,
   Mod = State#state.module,
-  case lists:member(Pid, State#state.plist) of
+  case lists:member(MonitorRef, State#state.monitors) of
     true ->
       % XXX: There's a bug in gproc that prevents it from removing
       % keys when a remote node goes away. This should do the trick for now.
       cleanup_gproc_data_from_dead_pid(cluster_key(State#state.module), Pid),
       {ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
-      OldPlist = State#state.plist,
-      NewPlist = lists:delete(Pid, OldPlist),
-      {true, State#state{state=NewExtState, plist=NewPlist}};
+      OldMlist = State#state.monitors,
+      NewMlist = lists:delete(MonitorRef, OldMlist),
+      {true, State#state{state=NewExtState, monitors=NewMlist}};
     false -> {false, State}
   end.
 
@@ -371,19 +371,11 @@ cluster_pids(State) ->
   gproc:lookup_pids({p,g,cluster_key(State#state.module)}).
 
 join_cluster(State) ->
+  Plist = cluster_pids(State),
+  MonRefs = lists:map(fun(Pid) -> erlang:monitor(process, Pid) end, Plist),
+  lists:foreach(fun(Pid) -> call(Pid, {'$gen_cluster', join, self()}) end, Plist),
   gproc:reg({p,g,cluster_key(State#state.module)}),
-  lists:foreach(
-    fun(Pid) ->
-      case Pid =/= self() of
-	true ->
-	  erlang:monitor(process, Pid),
-	  call(Pid, {'$gen_cluster', join, self()});
-        false -> ok
-      end
-    end,
-    cluster_pids(State)),
-
-  NewState = State#state{plist = cluster_pids(State)},
+  NewState = State#state{monitors = MonRefs},
   {ok, NewState}.
 
 
