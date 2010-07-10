@@ -7,8 +7,9 @@ setup() ->
   Nodes.
 
 teardown(Servers) ->
-  test_util:shutdown(Servers).
-
+  test_util:shutdown(Servers),
+  % wait for gproc to catch up with the dead processes
+  timer:sleep(300).
 
 node_state_test_() ->
  {setup, fun setup/0, fun teardown/1,
