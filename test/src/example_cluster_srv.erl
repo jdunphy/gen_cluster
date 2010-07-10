@@ -25,7 +25,7 @@
 
 -include ("debugger.hrl").
 
--record(state, {name, pid, last_msg, timestamp}).
+-record(state, {name, pid, last_msg, timestamp, last_join, last_leave}).
 
 %%====================================================================
 %% API
@@ -90,9 +90,15 @@ handle_call({set_msg, Msg}, _From, State) ->
 
 handle_call({get_msg}, _From, #state{last_msg = Msg} = State) ->
   {reply, {ok, Msg}, State};
-  
+
 handle_call({state}, _From, State) ->
   {reply, {ok, State}, State};
+
+handle_call(get_last_leave, _From, #state{last_leave = Pid} = State) ->
+  {reply, {ok, Pid}, State};
+
+handle_call(get_last_join, _From, #state{last_join = Pid} = State) ->
+  {reply, {ok, Pid}, State};
 
 handle_call(_Request, _From, State) ->
   {reply, todo_reply, State}.
@@ -159,7 +165,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 handle_join(JoiningPid, State) ->
   ?TRACE("~p:~p handle join called: ~p~n", [JoiningPid]),
-  {ok, State}.
+  NewState = State#state{last_join = JoiningPid},
+  {ok, NewState}.
 
 
 %%--------------------------------------------------------------------
@@ -171,7 +178,8 @@ handle_join(JoiningPid, State) ->
 %%--------------------------------------------------------------------
 handle_leave(LeavingPid, Info, State) ->
   ?TRACE("~p:~p handle_leave called: ~p~n", [LeavingPid, Info]),
-  {ok, State}.
+  NewState = State#state{last_leave = LeavingPid},
+  {ok, NewState}.
 
 handle_publish(Msg, State) ->
   {noreply, State#state{last_msg = Msg}}.
