@@ -59,7 +59,8 @@ behaviour_info(_) ->
 -record(state, {
   module,       % module name started
   state,        % mod's state
-  data          % user mod's data
+  data,         % user mod's data
+  plist         % cached copy of cluster members' list
 }).
 
 %% debugging helper
@@ -341,23 +342,27 @@ handle_pid_joining(Pid, _From, State) ->
       _Else -> State
   end,
 
-  {ok, StateData}.
+  Plist = StateData#state.plist,
+  NewState = StateData#state{plist = [Pid|Plist]},
+  {ok, NewState}.
 
 handle_pid_leaving(Pid, Info, State) ->
   ExtState = State#state.state,
   Mod = State#state.module,
-  case is_pid_part_of_the_cluster(Pid, State) of
+  case lists:member(Pid, State#state.plist) of
     true ->
-	% XXX: There's a bug in gproc that prevents it from removing
-        % keys when a remote node goes away. This should do the trick for now.
-	cleanup_gproc_data_from_dead_pid(cluster_key(State#state.module), Pid),
-	{ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
-        {true, State#state{state=NewExtState}};
+      % XXX: There's a bug in gproc that prevents it from removing
+      % keys when a remote node goes away. This should do the trick for now.
+      cleanup_gproc_data_from_dead_pid(cluster_key(State#state.module), Pid),
+      {ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
+      OldPlist = State#state.plist,
+      NewPlist = lists:delete(Pid, OldPlist),
+      {true, State#state{state=NewExtState, plist=NewPlist}};
     false -> {false, State}
   end.
 
 cleanup_gproc_data_from_dead_pid(Key, Pid) ->
-    catch gproc_dist:leader_call({unreg, {p,g,Key}, Pid}).
+  catch gproc_dist:leader_call({unreg, {p,g,Key}, Pid}).
 
 cluster_key(Mod) ->
   {gen_cluster, Mod}.
@@ -371,9 +376,6 @@ monitor_pid(Pid) when is_pid(Pid) ->
     true -> erlang:monitor(process, Pid)
   end.
 
-is_pid_part_of_the_cluster(Pid, State) when is_pid(Pid) ->
-  lists:member(Pid, cluster_pids(State)).
-
 join_cluster(State) ->
   gproc:reg({p,g,cluster_key(State#state.module)}),
   lists:foreach(
@@ -386,7 +388,10 @@ join_cluster(State) ->
       end
     end,
     cluster_pids(State)),
-  {ok, State}.
+
+  NewState = State#state{plist = cluster_pids(State)},
+  {ok, NewState}.
+
 
 % publish through gproc
 do_publish(Mod, Msg) ->
