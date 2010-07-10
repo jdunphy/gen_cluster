@@ -185,11 +185,6 @@ init([Mod, Args]) ->
 %%                                                 {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({'$gen_cluster', join, Pid}, From, State) ->
-  ?TRACE("$gen_cluster join", State),
-  {ok, NewState} = handle_pid_joining(Pid, From, State),
-  {reply, ok, NewState};
-
 handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
   Pids = gproc:lookup_pids({p,g,cluster_key(Mod)}),
   {reply, {ok, Pids}, State};
@@ -263,6 +258,17 @@ handle_info({'DOWN', MonitorRef, process, Pid, Info} = T, #state{module = Mod} =
       erlang:display({?MODULE, ?LINE, error, {unknown, E}})
   end;
 
+handle_info({'$gen_cluster', join, Pid}, #state{module = Mod, state = ExtState} = State) ->
+  ?TRACE("handle_pid_joining", Pid),
+  MonRef = erlang:monitor(process, Pid),
+
+  % callback
+  Reply = Mod:handle_join(Pid, ExtState),
+
+  Monitors = State#state.monitors,
+  NewState = State#state{monitors = [MonRef|Monitors]},
+  handle_cast_info_reply(Reply, NewState);
+
 handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod, state = ExtState} = State) ->
   case erlang:function_exported(Mod, handle_publish, 2) of
     false -> handle_cast_info_reply({noreply, ExtState}, State);
@@ -323,22 +329,6 @@ code_change(OldVsn, State, Extra) ->
     NewState = State#state{state=NewExtState},
     {ok, NewState}.
 
-
-handle_pid_joining(Pid, _From, State) ->
-  ?TRACE("handle_pid_joining", Pid),
-  MonRef = erlang:monitor(process, Pid),
-
-  % callback
-  #state{module=Mod, state=ExtState} = State,
-  StateData = case Mod:handle_join(Pid, ExtState) of
-      {ok, NewExtState} -> State#state{state = NewExtState};
-      _Else -> State
-  end,
-
-  Monitors = StateData#state.monitors,
-  NewState = StateData#state{monitors = [MonRef|Monitors]},
-  {ok, NewState}.
-
 handle_pid_leaving(Pid, MonitorRef, Info, State) ->
   ExtState = State#state.state,
   Mod = State#state.module,
@@ -366,7 +356,7 @@ cluster_pids(State) ->
 join_cluster(State) ->
   Plist = cluster_pids(State),
   MonRefs = lists:map(fun(Pid) -> erlang:monitor(process, Pid) end, Plist),
-  lists:foreach(fun(Pid) -> call(Pid, {'$gen_cluster', join, self()}) end, Plist),
+  lists:foreach(fun(Pid) -> do_send(Pid, {'$gen_cluster', join, self()}) end, Plist),
   gproc:reg({p,g,cluster_key(State#state.module)}),
   NewState = State#state{monitors = MonRefs},
   {ok, NewState}.

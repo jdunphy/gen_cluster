@@ -166,7 +166,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_join(JoiningPid, State) ->
   ?TRACE("~p:~p handle join called: ~p~n", [JoiningPid]),
   NewState = State#state{last_join = JoiningPid},
-  {ok, NewState}.
+  {noreply, NewState}.
 
 
 %%--------------------------------------------------------------------
