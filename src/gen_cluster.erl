@@ -38,8 +38,8 @@
 -export([
   mod_plist/2,
   publish/2,
-  run/2,
-  ballot_run/2,
+  run/2, cast_run/2,
+  ballot_run/2, ballot_cast/2,
   call_vote/2
 ]).
 
@@ -118,9 +118,20 @@ run(Mod, Msg) ->
     {error, no_winner} ->
       % Force a run
       P = randomly_pick(gproc:lookup_pids({p,g,cluster_key(Mod)}), []),
-      call(P, Msg, infinity);
+      call(P, Msg, infinity),
+      P;
     {error, _} = T -> T;
     {ok, _, _} = Good -> Good
+  end.
+
+% Cast a run
+cast_run(Mod, Msg) ->
+  case ballot_cast(Mod, Msg) of
+    {error, no_winner} ->
+      P = randomly_pick(gproc:lookup_pids({p,g,cluster_key(Mod)}), []),
+      cast(P, Msg),
+      P;
+    E -> E
   end.
 
 % Run through a vote and run the function
@@ -136,6 +147,19 @@ ballot_run(Mod, Msg) ->
       T
   end.
   
+ballot_cast(Mod, Msg) ->
+  case call_vote(Mod, Msg) of
+    Pid when is_pid(Pid) -> 
+      case catch cast(Pid, Msg) of
+        {'EXIT', Err} -> {error, Err};
+        T -> {ok, Pid, T}
+      end;
+    {error, _Reason} = T ->
+      % erlang:display({could_not_run, Reason}),
+      T
+  end.
+
+
 % Call vote and get the PID
 call_vote(Mod, Msg) ->
   do_call_vote(Mod, Msg).
