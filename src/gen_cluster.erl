@@ -117,9 +117,13 @@ run(Mod, Msg) ->
   case ballot_run(Mod, Msg) of
     {error, no_winner} ->
       % Force a run
-      P = randomly_pick(gproc:lookup_pids({p,g,cluster_key(Mod)}), []),
-      call(P, Msg, infinity),
-      P;
+      case gproc:lookup_pids({p,g,cluster_key(Mod)}) of
+        [] -> {error, no_nodes};
+        Nodes ->
+          P = randomly_pick(Nodes, []),
+          call(P, Msg, infinity),
+          P
+      end;
     {error, _} = T -> T;
     {ok, _, _} = Good -> Good
   end.
