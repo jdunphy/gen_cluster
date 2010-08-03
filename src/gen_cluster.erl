@@ -446,7 +446,7 @@ start_gproc_if_necessary(State) ->
   case whereis(gproc) of
     undefined ->
       Seeds = get_seed_nodes(State),
-      case Seeds of
+      case Seeds -- [node()] of
         [] ->
           application:set_env(gproc, gproc_dist, [node()]);
         [S1|_] ->
