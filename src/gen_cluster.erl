@@ -362,18 +362,12 @@ handle_pid_leaving(Pid, MonitorRef, Info, State) ->
   Mod = State#state.module,
   case lists:member(MonitorRef, State#state.monitors) of
     true ->
-      % XXX: There's a bug in gproc that prevents it from removing
-      % keys when a remote node goes away. This should do the trick for now.
-      cleanup_gproc_data_from_dead_pid(cluster_key(State#state.module), Pid),
       {ok, NewExtState} = Mod:handle_leave(Pid, Info, ExtState),
       OldMlist = State#state.monitors,
       NewMlist = lists:delete(MonitorRef, OldMlist),
       {true, State#state{state=NewExtState, monitors=NewMlist}};
     false -> {false, State}
   end.
-
-cleanup_gproc_data_from_dead_pid(Key, Pid) ->
-  catch gproc_dist:leader_call({unreg, {p,g,Key}, Pid}).
 
 cluster_key(Mod) ->
   {gen_cluster, Mod}.
@@ -421,16 +415,16 @@ do_send(Pid, Msg) ->
 
 get_seed_nodes(#state{module = Mod, state = ExtState} = _State) ->
   Nodes1 = case os:getenv("GPROC_SEEDS") of
-    false -> [node()];
+    false -> [];
     E -> lists:map(fun(Node) ->
       case Node of
         List when is_list(List) -> erlang:list_to_atom(List);
         Atom -> Atom
       end
-    end, [node()|E])
+    end, [E])
   end,
   Nodes2 = case erlang:function_exported(Mod, seed_nodes, 1) of
-    true -> 
+    true ->
       case Mod:seed_nodes(ExtState) of
         undefined -> Nodes1;
         [undefined] -> Nodes1;
@@ -451,13 +445,13 @@ get_seed_nodes(#state{module = Mod, state = ExtState} = _State) ->
 start_gproc_if_necessary(State) ->
   case whereis(gproc) of
     undefined ->
-      %{ok, [[Seed]]} = init:get_argument(gen_cluster_known),
-      %Seed = init:get_argument(gen_cluster_known),
       Seeds = get_seed_nodes(State),
-      
-      % Ping the nodes
-      [ net_adm:ping(S) || S <- Seeds ],
-      application:set_env(gproc, gproc_dist, Seeds),
+      case Seeds of
+        [] ->
+          application:set_env(gproc, gproc_dist, [node()]);
+        [S1|_] ->
+          application:set_env(gproc, gproc_dist, [[], [{seed, S1}]])
+      end,
       application:start(gproc);
     _ -> ok
   end.
