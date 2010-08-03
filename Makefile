@@ -9,7 +9,6 @@ compile:
 	@./rebar compile
 
 deps:
-	@./bootstrap.sh
 	@./rebar get-deps
 
 clean:
