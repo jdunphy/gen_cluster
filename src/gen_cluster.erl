@@ -10,10 +10,10 @@
 %%% * registers one global pid in the format of "gen_cluster_" ++
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
 %%%   for one "rallying point" for each new node that joins the cluster.
-%%% * If the node holding the rally point fails, a new node needs to take over the registered name
+%%% * If the node holding the rally point fails, a new node needs to
+%%%   take over the registered name
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
--include_lib("../include/gen_cluster.hrl").
 
 %% Define this module as a gen_server callback module.
 -behaviour(gen_server).
@@ -46,9 +46,9 @@
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 2}, {handle_leave, 3},
+     {handle_join, 2}, {handle_leave, 3},
     % gen_server
-      {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
+     {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
 
 behaviour_info(_) ->
