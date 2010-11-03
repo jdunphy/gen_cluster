@@ -3,6 +3,7 @@
 -include("debugger.hrl").
 
 setup() ->
+  erlang:display("calling start with 3"),
   {ok, Nodes} = test_util:start(3),
   Nodes.
 
@@ -11,8 +12,10 @@ teardown(Servers) ->
   % wait for gproc to catch up with the dead processes
   timer:sleep(300).
 
-node_state_test_() ->
- {setup, fun setup/0, fun teardown/1,
+node_state_test() ->
+ {setup,
+  fun setup/0,
+  fun teardown/1,
   fun() ->
    ?assert(true =:= true),
    {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
@@ -23,8 +26,10 @@ node_state_test_() ->
    passed
   end}.
 
-cluster_is_updated_when_member_leaves_test_() ->
-  {setup, fun setup/0, fun teardown/1,
+cluster_is_updated_when_member_leaves_test() ->
+  {setup,
+   fun setup/0,
+   fun teardown/1,
    fun() ->
     gen_cluster:cast(node1, stop),
     timer:sleep(300),
@@ -34,7 +39,7 @@ cluster_is_updated_when_member_leaves_test_() ->
     passed
    end}.
 
-cluster_members_are_notified_when_a_member_leaves_test_() ->
+cluster_members_are_notified_when_a_member_leaves_test() ->
   {setup, fun setup/0, fun teardown/1,
    fun() ->
     CrashingPid = whereis(node0),
@@ -47,7 +52,7 @@ cluster_members_are_notified_when_a_member_leaves_test_() ->
     passed
    end}.
 
-cluster_members_are_notified_when_a_new_member_joins_test_() ->
+cluster_members_are_notified_when_a_new_member_joins_test() ->
   {setup, fun setup/0, fun teardown/1,
    fun() ->
     {ok, NewPid} = example_cluster_srv:start_named(node4, []),
@@ -62,7 +67,7 @@ cluster_members_are_notified_when_a_new_member_joins_test_() ->
     passed
    end}.
 
-publish_test_() ->
+publish_test() ->
  {setup, fun setup/0, fun teardown/1,
   fun() ->
    {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
@@ -77,7 +82,7 @@ publish_test_() ->
    passed
   end}.
 
-vote_test_() ->
+vote_test() ->
  {setup, fun setup/0, fun teardown/1,
   fun() ->
    O1 = gen_cluster:call_vote(example_cluster_srv, {run, server}),
@@ -95,7 +100,7 @@ vote_test_() ->
    passed
   end}.
 
-run_test_() ->
+run_test() ->
  {setup, fun setup/0, fun teardown/1,
   fun() ->
    Msg = {hello, from, self()},

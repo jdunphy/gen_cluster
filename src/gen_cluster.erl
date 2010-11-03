@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% File    : stoplight_srv.erl
 %%% Author  : nmurray@attinteractive.com, alerner@attinteractive.com
-%%% Description : Cascading gen_server behavior that implements process clustering.  
+%%% Description : Cascading gen_server behavior that implements process clustering.
 %%% See: http://wiki.trapexit.org/index.php/Cascading_Behaviours
 %%% Created     : 2009-08-03
 %%%
@@ -139,9 +139,9 @@ cast_run(Mod, Msg) ->
   end.
 
 % Run through a vote and run the function
-ballot_run(Mod, Msg) -> 
+ballot_run(Mod, Msg) ->
   case call_vote(Mod, Msg) of
-    Pid when is_pid(Pid) -> 
+    Pid when is_pid(Pid) ->
       case catch call(Pid, Msg, infinity) of
         {'EXIT', Err} -> {error, Err};
         T -> {ok, Pid, T}
@@ -150,10 +150,10 @@ ballot_run(Mod, Msg) ->
       % erlang:display({could_not_run, Reason}),
       T
   end.
-  
+
 ballot_cast(Mod, Msg) ->
   case call_vote(Mod, Msg) of
-    Pid when is_pid(Pid) -> 
+    Pid when is_pid(Pid) ->
       case catch cast(Pid, Msg) of
         {'EXIT', Err} -> {error, Err};
         T -> {ok, Pid, T}
@@ -378,7 +378,9 @@ cluster_pids(State) ->
 join_cluster(State) ->
   Plist = cluster_pids(State),
   MonRefs = lists:map(fun(Pid) -> erlang:monitor(process, Pid) end, Plist),
-  lists:foreach(fun(Pid) -> do_send(Pid, {'$gen_cluster', join, self()}) end, Plist),
+  lists:foreach(fun(Pid) ->
+                    do_send(Pid, {'$gen_cluster', join, self()})
+                end, Plist),
   gproc:reg({p,g,cluster_key(State#state.module)}),
   NewState = State#state{monitors = MonRefs},
   {ok, NewState}.
@@ -392,7 +394,7 @@ do_publish(Mod, Msg) ->
 
 % Call vote
 do_call_vote(Mod, Msg) ->
-  OriginalVotes = lists:map(fun(Pid) ->    
+  OriginalVotes = lists:map(fun(Pid) ->
     Vote = case catch gen_server:call(Pid, {'$gen_cluster', handle_vote_called, Msg}) of
       {'EXIT', _} -> 0;
       {error, _} -> 0;
@@ -406,7 +408,7 @@ do_call_vote(Mod, Msg) ->
       [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
       WinnerPid
   end.
-  
+
 do_send(Pid, Msg) ->
   case catch erlang:send(Pid, Msg, [noconnect]) of
 	  noconnect -> spawn(erlang, send, [Pid,Msg]);
@@ -434,7 +436,7 @@ get_seed_nodes(#state{module = Mod, state = ExtState} = _State) ->
       end;
     false -> Nodes1
   end,
-  Nodes3 = case whereis(Mod) of % join unless we are the main server 
+  Nodes3 = case whereis(Mod) of % join unless we are the main server
     undefined -> Nodes2;
     X when X =:= self() -> Nodes2;
     Pid when is_pid(Pid) -> [node(Pid)|Nodes2];
