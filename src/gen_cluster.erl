@@ -205,19 +205,21 @@ init([Mod, Args]) ->
   end.
 
 %%--------------------------------------------------------------------
-%% Function:  handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                        {reply, Reply, State, Timeout} |
-%%                                                      {noreply, State} |
-%%                                             {noreply, State, Timeout} |
-%%                                          {stop, Reason, Reply, State} |
-%%                                                 {stop, Reason, State}
+%% Function:  handle_call(Request, From, State) ->
+%%                           {reply, Reply, State} |
+%%                           {reply, Reply, State, Timeout} |
+%%                           {noreply, State} |
+%%                           {noreply, State, Timeout} |
+%%                           {stop, Reason, Reply, State} |
+%%                           {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
   Pids = gproc:lookup_pids({p,g,cluster_key(Mod)}),
   {reply, {ok, Pids}, State};
 
-handle_call({'$gen_cluster', handle_vote_called, Msg}, From, #state{module = Mod, state = ExtState} = State) ->
+handle_call({'$gen_cluster', handle_vote_called, Msg},
+            From, #state{module = Mod, state = ExtState} = State) ->
   Reply = case erlang:function_exported(Mod, handle_vote, 2) of
     false -> {reply, 0, State};
     true -> Mod:handle_vote(Msg, ExtState)
@@ -274,7 +276,8 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', MonitorRef, process, Pid, Info} = T, #state{module = Mod} = State) ->
+handle_info({'DOWN', MonitorRef, process, Pid, Info} = T,
+            #state{module = Mod} = State) ->
   ?TRACE("received 'DOWN'. Info:", Info),
   case handle_pid_leaving(Pid, MonitorRef, Info, State) of
     {false, #state{state = ExtState} = _NoPidNewState} ->
@@ -286,7 +289,8 @@ handle_info({'DOWN', MonitorRef, process, Pid, Info} = T, #state{module = Mod} =
       erlang:display({?MODULE, ?LINE, error, {unknown, E}})
   end;
 
-handle_info({'$gen_cluster', join, Pid}, #state{module = Mod, state = ExtState} = State) ->
+handle_info({'$gen_cluster', join, Pid},
+            #state{module = Mod, state = ExtState} = State) ->
   ?TRACE("handle_pid_joining", Pid),
   MonRef = erlang:monitor(process, Pid),
 
@@ -297,7 +301,8 @@ handle_info({'$gen_cluster', join, Pid}, #state{module = Mod, state = ExtState} 
   NewState = State#state{monitors = [MonRef|Monitors]},
   handle_cast_info_reply(Reply, NewState);
 
-handle_info({'$gen_cluster', handle_publish, Msg}, #state{module = Mod, state = ExtState} = State) ->
+handle_info({'$gen_cluster', handle_publish, Msg},
+            #state{module = Mod, state = ExtState} = State) ->
   case erlang:function_exported(Mod, handle_publish, 2) of
     false -> handle_cast_info_reply({noreply, ExtState}, State);
     true ->
@@ -405,7 +410,10 @@ do_call_vote(Mod, Msg) ->
   case lists:filter(fun({_, Vote}) -> Vote > 0 end, OriginalVotes) of
     [] -> {error, no_winner};
     Votes ->
-      [{WinnerPid, _WinnerVote}|_Rest] = lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) -> Vote1 > Vote2 end, Votes),
+      [{WinnerPid, _WinnerVote}|_Rest] =
+        lists:sort(fun({_Pid1, Vote1},{_Pid2, Vote2}) ->
+                       Vote1 > Vote2
+                   end, Votes),
       WinnerPid
   end.
 
@@ -459,8 +467,8 @@ start_gproc_if_necessary(State) ->
   end.
 
 randomly_pick([], Acc) -> hd(Acc);
-randomly_pick(Bees, Acc) ->
-  RandNum = random:uniform(length(Bees)),
-  Bee = lists:nth(RandNum, Bees),
-  NewBees = lists:delete(Bee, Bees),
-  randomly_pick(NewBees, [Bee|Acc]).
+randomly_pick(Nodes, Acc) ->
+  RandNum = random:uniform(length(Nodes)),
+  Node = lists:nth(RandNum, Nodes),
+  NewNodes = lists:delete(Node, Nodes),
+  randomly_pick(NewNodes, [Node|Acc]).
