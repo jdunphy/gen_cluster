@@ -44,15 +44,16 @@
 ]).
 
 behaviour_info(callbacks) ->
-    [
-    % gen_cluster
-     {handle_join, 2}, {handle_leave, 3},
-    % gen_server
-     {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
-   ];
+  [
+   %% gen_cluster
+   {handle_join, 2}, {handle_leave, 3},
+   %% gen_server
+   {init,1}, {handle_call,3},{handle_cast,2},
+   {handle_info,2}, {terminate,2},{code_change,3}
+  ];
 
 behaviour_info(_) ->
-    undefined.
+  undefined.
 
 %% State data record.
 -record(state, {
@@ -142,9 +143,10 @@ cast_run(Mod, Msg) ->
 ballot_run(Mod, Msg) ->
   case call_vote(Mod, Msg) of
     Pid when is_pid(Pid) ->
-      case catch call(Pid, Msg, infinity) of
-        {'EXIT', Err} -> {error, Err};
-        T -> {ok, Pid, T}
+      try call(Pid, Msg, infinity) of
+          T -> {ok, Pid, T}
+      catch
+        exit:Err -> {error, Err}
       end;
     {error, _Reason} = T ->
       % erlang:display({could_not_run, Reason}),
@@ -154,9 +156,10 @@ ballot_run(Mod, Msg) ->
 ballot_cast(Mod, Msg) ->
   case call_vote(Mod, Msg) of
     Pid when is_pid(Pid) ->
-      case catch cast(Pid, Msg) of
-        {'EXIT', Err} -> {error, Err};
-        T -> {ok, Pid, T}
+      try cast(Pid, Msg) of
+          T -> {ok, Pid, T}
+      catch
+          exit:Err -> {error, Err}
       end;
     {error, _Reason} = T ->
       % erlang:display({could_not_run, Reason}),
